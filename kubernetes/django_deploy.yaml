@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-dep
+  labels:
+    app: django_app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      project: kuber1
+  template:
+    metadata:
+      labels:
+        project: kuber1
+    spec:
+      containers:
+        - name: container-django
+          image: django_app:latest
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: django-env
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-service
+  labels:
+    env: prod
+    owner: IBA
+spec:
+  selector:
+    project: kuber1
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: star-burger.test
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: django-service
+            port:
+              number: 80
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-role
+  namespace: default
+  labels:
+    app: tools-rbac
+rules:
+- apiGroups: ["", "apps"]
+  resources: ["pods", "pods/exec", "deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: global-rolebinding
+  namespace: default
+  labels:
+    app: tools-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: api-role
+subjects:
+- kind: Group
+  name: system:serviceaccounts
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: django-clearsessions
+spec:
+  schedule: "0 1 1 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: "kubectl"
+            image: "4ops/kubectl:1.18.2"
+            imagePullPolicy: IfNotPresent
+            args: ["exec", "deploy/django-dep", "--", "./manage.py", "clearsessions"]
+          restartPolicy: OnFailure

@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migrate
+spec:
+  template:
+    spec:
+      containers:
+      - name: "kubectl"
+        image: "4ops/kubectl:1.18.2"
+        imagePullPolicy: IfNotPresent
+        args: ["exec", "deploy/django-dep", "--", "./manage.py", "migrate", "--noinput"]
+      restartPolicy: OnFailure

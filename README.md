@@ -32,3 +32,31 @@ $ docker-compose run web ./manage.py createsuperuser
 `ALLOWED_HOSTS` -- настройка Django со списком разрешённых адресов. Если запрос прилетит на другой адрес, то сайт ответит ошибкой 400. Можно перечислить несколько адресов через запятую, например `127.0.0.1,192.168.0.1,site.test`. [Документация Django](https://docs.djangoproject.com/en/3.2/ref/settings/#allowed-hosts).
 
 `DATABASE_URL` -- адрес для подключения к базе данных PostgreSQL. Другие СУБД сайт не поддерживает. [Формат записи](https://github.com/jacobian/dj-database-url#url-schema).
+
+## Деплой сайта в кластер Minikube
+
+1. Установите Minikube, Kubectl и Helm согласно документации. Создайте кластер.
+2. Загрузите образ django_app, созданный docker-compose, в кластер:  
+```shell-session
+$ minikube image load django_app 
+```
+3. Перейдите в папку /kubernetes и создайте  файл django.env с переменными окружения, описанными выше. 
+Для ALLOWED_HOSTS укажите star-burger.test.
+Формат DATABASE_URL "postgres://<db_username>:<db_password>@postgres-postgresql.default.svc.cluster.local:5432/<db_name>
+4. Запустите команды  
+```shell-session
+$ kubectl create configmap django-env --from-env-file=django.env
+$ kubectl apply -f django_deploy.yaml
+$ helm install postgres\
+ --set auth.username=<db_username>\
+ --set auth.password=<db_password>\
+ --set auth.database=<db_name>\
+ bitnami/postgresql
+```
+Имя базы, имя и пароль пользователя должны соответствовать DATABASE_URL из шага 3.
+5. Запустите миграцию БД:
+```shell-session
+$ kubectl apply -f migrate-job.yaml
+```
+6. В файл /etc/hosts добавьте строку `127.0.0.1 star-burger.test`
+7. [Проверьте работу сайта](http://star-burger.test) 
