@@ -53,7 +53,7 @@ $ helm install postgres\
  --set auth.database=<db_name>\
  bitnami/postgresql
 ```
-Имя базы, имя и пароль пользователя должны соответствовать DATABASE_URL из шага 3.
+Имя базы, имя и пароль пользователя должны соответствовать DATABASE_URL из шага 3.  
 5. Запустите миграцию БД:
 ```shell-session
 $ kubectl apply -f migrate-job.yaml
