@@ -3,11 +3,34 @@ kind: Job
 metadata:
   name: django-migrate
 spec:
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
   template:
     spec:
-      containers:
-      - name: "kubectl"
-        image: "4ops/kubectl:1.18.2"
-        imagePullPolicy: IfNotPresent
-        args: ["exec", "deploy/django-dep", "--", "./manage.py", "migrate", "--noinput"]
       restartPolicy: OnFailure
+      containers:
+      - name: django-migrate
+        image: django_app:latest
+        imagePullPolicy: Never
+        envFrom:
+          - configMapRef:
+              name: django-env
+        command:
+          - python
+          - manage.py
+          - migrate
+          - --no-input
+        env:
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: django-app
+                key: postgres_url
+                optional: false
+          - name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: django-app
+                key: django_secret_key
+                optional: false

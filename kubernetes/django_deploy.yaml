@@ -21,8 +21,29 @@ spec:
           envFrom:
             - configMapRef:
                 name: django-env
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: django-app
+                  key: postgres_url
+                  optional: false
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: django-app
+                  key: django_secret_key
+                  optional: false
           ports:
             - containerPort: 80
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-env
+data:
+  ALLOWED_HOSTS: "*"
+  DEBUG: "true"
 ---
 apiVersion: v1
 kind: Service
@@ -58,46 +79,42 @@ spec:
             port:
               number: 80
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: api-role
-  namespace: default
-  labels:
-    app: tools-rbac
-rules:
-- apiGroups: ["", "apps"]
-  resources: ["pods", "pods/exec", "deployments"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: global-rolebinding
-  namespace: default
-  labels:
-    app: tools-rbac
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: api-role
-subjects:
-- kind: Group
-  name: system:serviceaccounts
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: django-clearsessions
 spec:
+  startingDeadlineSeconds: 600
   schedule: "0 1 1 * *"
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 600
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
       template:
         spec:
-          containers:
-          - name: "kubectl"
-            image: "4ops/kubectl:1.18.2"
-            imagePullPolicy: IfNotPresent
-            args: ["exec", "deploy/django-dep", "--", "./manage.py", "clearsessions"]
           restartPolicy: OnFailure
+          containers:
+          - name: django-clearsessions
+            image: django_app:latest
+            imagePullPolicy: Never
+            envFrom:
+              - configMapRef:
+                  name: django-env
+            command:
+              - python
+              - manage.py
+              - clearsessions
+            env:
+              - name: DATABASE_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: django-app
+                    key: postgres_url
+                    optional: false
+              - name: SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: django-app
+                    key: django_secret_key
+                    optional: false

@@ -36,16 +36,24 @@ $ docker-compose run web ./manage.py createsuperuser
 ## Деплой сайта в кластер Minikube
 
 1. Установите Minikube, Kubectl и Helm согласно документации. Создайте кластер.
-2. Загрузите образ django_app, созданный docker-compose, в кластер:  
+2. Включите Ingress-controller:
+shell-session
+```shell-session
+$ minikube addons enable ingress
+```
+3. Перейдите в папку /backend_main_django и создайте образ:
+```shell-session
+$ docker build . -t django_app
+```  
+4. Загрузите образ django_app в кластер:  
 ```shell-session
 $ minikube image load django_app 
 ```
-3. Перейдите в папку /kubernetes и создайте  файл django.env с переменными окружения, описанными выше. 
-Для ALLOWED_HOSTS укажите star-burger.test.
-Формат DATABASE_URL "postgres://<db_username>:<db_password>@postgres-postgresql.default.svc.cluster.local:5432/<db_name>
-4. Запустите команды  
+5. Создайте в кластере следующие Secrets:
+  - name: django-app key: django_secret_key value: <your_secret_key>
+  - name: django-app key: postgres_url: value: postgres://<db_username>:<db_password>@postgres-postgresql.default.svc.cluster.local:5432/<db_name>
+6. Перейдите в папку /kubernetes и запустите команды  
 ```shell-session
-$ kubectl create configmap django-env --from-env-file=django.env
 $ kubectl apply -f django_deploy.yaml
 $ helm install postgres\
  --set auth.username=<db_username>\
@@ -53,10 +61,13 @@ $ helm install postgres\
  --set auth.database=<db_name>\
  bitnami/postgresql
 ```
-Имя базы, имя и пароль пользователя должны соответствовать DATABASE_URL из шага 3.  
-5. Запустите миграцию БД:
+Имя базы, имя и пароль пользователя должны соответствовать DATABASE_URL из шага 5.  
+7. Запустите миграцию БД:
 ```shell-session
 $ kubectl apply -f migrate-job.yaml
 ```
-6. В файл /etc/hosts добавьте строку `127.0.0.1 star-burger.test`
+8. В файл /etc/hosts добавьте строку `<VM IP> star-burger.test`. VM IP получите следующей командой:
+```shell-session
+$ minikube ip
+```
 7. [Проверьте работу сайта](http://star-burger.test) 
